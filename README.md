@@ -1,5 +1,11 @@
 # HomeDash sidecar
 
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/mvdkleijn/homedash-sidecar?style=for-the-badge)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mvdkleijn/homedash-sidecar?style=for-the-badge)](https://goreportcard.com/report/github.com/mvdkleijn/homedash-sidecar)
+![Liberapay patrons](https://img.shields.io/liberapay/patrons/mvdkleijn?style=for-the-badge)
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/O4O7H6C73)
+
 This is the sidecar application that reports running containers to the HomeDash server.
 
 Keep in mind that the sidecar application requires access to the Docker API.
