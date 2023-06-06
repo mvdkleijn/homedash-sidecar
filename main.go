@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -43,7 +44,7 @@ var homedashInterval string
 var myUUID string
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	// log.SetLevel(log.DebugLevel)
 
 	homedashServer = os.Getenv("HOMEDASH_SERVER")
 	if homedashServer == "" {
@@ -52,11 +53,11 @@ func main() {
 
 	homedashInterval = os.Getenv("HOMEDASH_INTERVAL")
 	if homedashInterval == "" {
-		log.Warnf("Environment variable HOMEDASH_INTERVAL not set or empty. Defaulting to once every 10 minutes.")
-		homedashInterval = "10m"
+		homedashInterval = "10"
+		log.Warnf("Environment variable HOMEDASH_INTERVAL not set or empty. Defaulting to once every %v minutes.", homedashInterval)
 	}
 
-	interval, err := time.ParseDuration(homedashInterval)
+	interval, err := strconv.Atoi(homedashInterval)
 	if err != nil {
 		log.Fatalf("Failed to parse HOMEDASH_INTERVAL time interval: %s", err)
 	}
@@ -94,7 +95,7 @@ func main() {
 				log.Println(err)
 			}
 
-			time.Sleep(interval * time.Minute)
+			time.Sleep(time.Duration(interval) * time.Minute)
 		}
 	}()
 
