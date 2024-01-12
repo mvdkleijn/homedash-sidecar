@@ -41,7 +41,7 @@ type ContainerInfo struct {
 
 var homedashServer string
 var homedashInterval string
-var myUUID string
+var homedashSidecarUUID string
 
 func main() {
 	// log.SetLevel(log.DebugLevel)
@@ -67,7 +67,11 @@ func main() {
 	log.Debugf("Will attempt to connect to %s once every %s", homedashServer, homedashInterval)
 
 	// Identify myself
-	myUUID = uuid.New().String()
+	homedashSidecarUUID = os.Getenv("HOMEDASH_SIDECAR_UUID")
+	if homedashSidecarUUID == "" {
+		homedashSidecarUUID = uuid.New().String()
+		log.Warnf("Environment variable HOMEDASH_SIDECAR_UUID not set or empty. Generated new UUID for this sidecar. Please set it in your environment for consistency: %s", homedashSidecarUUID)
+	}
 
 	// Create a new Docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -127,7 +131,7 @@ func retrieveContainers(cli *client.Client, options types.ContainerListOptions) 
 
 func postContainerInfo(applications []ContainerInfo) error {
 	containerUpdate := ContainerUpdate{
-		Uuid:       myUUID,
+		Uuid:       homedashSidecarUUID,
 		Containers: applications,
 	}
 

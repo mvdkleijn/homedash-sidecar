@@ -31,10 +31,11 @@ Everything except the `homedash.name` label is optional. Icons are retrieved fro
 
 ## Configuration
 
-| Environment variable | Description | Required | Default value |
-| -------------------- | ----------- | -------- | ------------- |
-| `HOMEDASH_SERVER`    | Full URL to HomeDash server. Example: http://localhost:8080 | Yes | - |
-| `HOMEDASH_INTERVAL`  | Interval at which to check for apps. In minutes. | No | **10** |
+| Environment variable    | Description                                                 | Required | Default value                                   |
+| ----------------------- | ----------------------------------------------------------- | -------- | ----------------------------------------------- |
+| `HOMEDASH_SERVER`       | Full URL to HomeDash server. Example: http://localhost:8080 | Yes      | -                                               |
+| `HOMEDASH_INTERVAL`     | Interval at which to check for apps. In minutes.            | No       | **10**                                          |
+| `HOMEDASH_SIDECAR_UUID` | UUID to identify sidecar instance with.                     | No       | **(re)generated on every restart when missing** |
 
 ## Support
 
