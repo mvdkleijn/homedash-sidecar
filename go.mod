@@ -1,6 +1,6 @@
 module sidecar
 
-go 1.22.4
+go 1.22
 
 require (
 	github.com/docker/docker v25.0.6+incompatible
