@@ -1,11 +1,10 @@
-module sidecar
+module code.vanderkleijn.net/homedash-sidecar
 
-go 1.22.8
+go 1.24.5
 
 require (
 	github.com/docker/docker v25.0.6+incompatible
 	github.com/google/uuid v1.6.0
-	github.com/sirupsen/logrus v1.9.3
 )
 
 require (
