@@ -24,6 +24,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
 )
 
@@ -86,22 +87,104 @@ func main() {
 func getApps(cli *client.Client, options container.ListOptions, cfg *config.Config) []ContainerInfo {
 	logger := config.GetLogger()
 
-	// Get a list of all running containers
-	containers, err := cli.ContainerList(context.Background(), options)
-	if err != nil {
-		logger.Error("unable to determine set of running containers", "error", err)
+	applications := make([]ContainerInfo, 0)
+
+	// Try Swarm mode first (cluster-wide discovery from manager)
+	swarmApps, isSwarmManager := getSwarmApps(cli, cfg)
+	if isSwarmManager {
+		logger.Debug("running on a Swarm manager, using cluster-wide service discovery")
+		applications = append(applications, swarmApps...)
+	} else {
+		logger.Debug("not a Swarm manager (or Swarm inactive), skipping cluster-wide service discovery")
 	}
 
-	// Cache for service labels to avoid repeated API calls
-	serviceLabelsCache := make(map[string]map[string]string)
+	// Also check local containers for:
+	// - Non-Swarm containers (standalone Docker / Compose)
+	// - Swarm containers with container-level labels that override service labels
+	localApps := getLocalContainerApps(cli, options, cfg)
+
+	// Merge, avoiding duplicates (prefer local container labels over service labels)
+	applications = mergeApps(applications, localApps)
+
+	return applications
+}
+
+// getSwarmApps queries all services in the Swarm cluster (manager-only).
+// It returns (apps, true) if this node is an active Swarm manager, otherwise (nil, false).
+func getSwarmApps(cli *client.Client, cfg *config.Config) ([]ContainerInfo, bool) {
+	logger := config.GetLogger()
+
+	info, err := cli.Info(context.Background())
+	if err != nil {
+		logger.Debug("failed to get Docker info", "error", err)
+		return nil, false
+	}
+
+	// Not in Swarm mode at all?
+	if info.Swarm.LocalNodeState != swarm.LocalNodeStateActive {
+		logger.Debug("node is not in an active Swarm state", "state", info.Swarm.LocalNodeState)
+		return nil, false
+	}
+
+	// Must be a manager to access cluster state
+	if !info.Swarm.ControlAvailable {
+		logger.Debug("node is not a Swarm manager, cannot query services")
+		return nil, false
+	}
+
+	services, err := cli.ServiceList(context.Background(), types.ServiceListOptions{})
+	if err != nil {
+		logger.Warn("failed to list Swarm services", "error", err)
+		return nil, false
+	}
+
+	logger.Debug("found Swarm services", "count", len(services))
 
 	applications := make([]ContainerInfo, 0)
 
-	// Process each container
+	for _, service := range services {
+		labels := make(map[string]string)
+
+		// Extract homedash labels from service
+		for k, v := range service.Spec.Labels {
+			if strings.HasPrefix(k, cfg.LabelPrefix) {
+				labels[k] = v
+			}
+		}
+
+		// Only include services that have at least the homedash.name label
+		if name, exists := labels[cfg.LabelPrefix+"name"]; exists {
+			containerInfo := ContainerInfo{
+				Name:    name,
+				Url:     labels[cfg.LabelPrefix+"url"],
+				Icon:    labels[cfg.LabelPrefix+"icon"],
+				Comment: labels[cfg.LabelPrefix+"comment"],
+				Swarm:   true,
+			}
+			applications = append(applications, containerInfo)
+			logger.Debug("found Swarm service", "service", service.Spec.Name, "container_info", containerInfo)
+		}
+	}
+
+	return applications, true
+}
+
+// getLocalContainerApps uses local container inspection (Docker / Compose / Swarm containers
+// with container-level labels).
+func getLocalContainerApps(cli *client.Client, options container.ListOptions, cfg *config.Config) []ContainerInfo {
+	logger := config.GetLogger()
+
+	containers, err := cli.ContainerList(context.Background(), options)
+	if err != nil {
+		logger.Error("unable to determine set of running containers", "error", err)
+		return nil
+	}
+
+	applications := make([]ContainerInfo, 0)
+
 	for _, container := range containers {
 		isSwarmContainer := false
 
-		// Start with container labels
 		labels := make(map[string]string)
 		for k, v := range container.Labels {
 			if strings.HasPrefix(k, cfg.LabelPrefix) {
@@ -109,41 +192,12 @@ func getApps(cli *client.Client, options container.ListOptions, cfg *config.Conf
 			}
 		}
 
-		// Check if this is a Swarm service container and get service labels
-		if serviceID, exists := container.Labels["com.docker.swarm.service.id"]; exists {
+		if _, exists := container.Labels["com.docker.swarm.service.id"]; exists {
 			isSwarmContainer = true
-
-			// Check cache first
-			if serviceLabels, cached := serviceLabelsCache[serviceID]; cached {
-				logger.Debug("cache hit", "serviceID", serviceID, "labels", serviceLabels)
-
-				// Merge service labels, giving them precedence
-				for k, v := range serviceLabels {
-					if strings.HasPrefix(k, cfg.LabelPrefix) {
-						labels[k] = v
-					}
-				}
-			} else {
-				// Fetch service info from Docker API
-				service, _, err := cli.ServiceInspectWithRaw(context.Background(), serviceID, types.ServiceInspectOptions{})
-				if err != nil {
-					logger.Warn("failed to inspect service", "serviceID", serviceID, "error", err)
-				} else {
-					// Cache the service labels
-					serviceLabelsCache[serviceID] = service.Spec.Labels
-					logger.Debug("caching service labels", "serviceID", serviceID, "labels", service.Spec.Labels)
-
-					// Merge service labels, giving them precedence
-					for k, v := range service.Spec.Labels {
-						if strings.HasPrefix(k, cfg.LabelPrefix) {
-							labels[k] = v
-						}
-					}
-				}
-			}
+			// We no longer inspect the service here; getSwarmApps already handles service-level labels.
+			// This function is just for container-level labels.
 		}
 
-		// Only include containers that have at least the homedash.name label
 		if name, exists := labels[cfg.LabelPrefix+"name"]; exists {
 			containerInfo := ContainerInfo{
 				Name:    name,
@@ -153,11 +207,31 @@ func getApps(cli *client.Client, options container.ListOptions, cfg *config.Conf
 				Swarm:   isSwarmContainer,
 			}
 			applications = append(applications, containerInfo)
-			logger.Debug("found application", "container_info", containerInfo)
+			logger.Debug("found local container application", "container_info", containerInfo)
 		}
 	}
 
 	return applications
+}
+
+// mergeApps combines Swarm service apps and local container apps, avoiding duplicates.
+// Local container labels take precedence over service labels (same name -> override).
+func mergeApps(swarmApps, localApps []ContainerInfo) []ContainerInfo {
+	appMap := make(map[string]ContainerInfo)
+
+	for _, app := range swarmApps {
+		appMap[app.Name] = app
+	}
+	for _, app := range localApps {
+		appMap[app.Name] = app
+	}
+
+	result := make([]ContainerInfo, 0, len(appMap))
+	for _, app := range appMap {
+		result = append(result, app)
+	}
+
+	return result
 }
 
 func postApps(applications []ContainerInfo, cfg *config.Config) {
