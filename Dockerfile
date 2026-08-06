@@ -26,7 +26,7 @@ RUN go build -ldflags="-w -s" -o app .
 #####################
 # Build final image #
 #####################
-FROM --platform=${TARGETPLATFORM:-linux/amd64} gcr.io/distroless/static-debian11:nonroot
+FROM --platform=${TARGETPLATFORM:-linux/amd64} gcr.io/distroless/static-debian13:nonroot
 
 COPY --from=builder /build/app /
 
