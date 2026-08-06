@@ -260,7 +260,7 @@ func postApps(applications []ContainerInfo, cfg *config.Config) {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Error("problem transmitting payload to server", "error", err)
@@ -269,6 +269,10 @@ func postApps(applications []ContainerInfo, cfg *config.Config) {
 	defer resp.Body.Close()
 
 	// Log the response status code for posterity
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		logger.Error("problem reading server response", "error", err)
+		return
+	}
 	logger.Debug("server response", "status_code", resp.StatusCode, "body", string(body))
 }
