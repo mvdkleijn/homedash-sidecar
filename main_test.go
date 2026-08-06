@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"code.vanderkleijn.net/homedash-sidecar/internal/config"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -43,6 +45,27 @@ func TestPostAppsTransportErrorDoesNotPanic(t *testing.T) {
 	}()
 
 	postApps(client, []ContainerInfo{{Name: "Test", Url: "http://example.test"}}, testConfig("http://server.test/api/v1/applications"))
+}
+
+func TestRunUpdateCycleRecoversFromPanic(t *testing.T) {
+	dockerClient, err := client.NewClientWithOpts(client.WithHost("tcp://127.0.0.1:1"))
+	if err != nil {
+		t.Fatalf("unable to create docker client: %v", err)
+	}
+
+	httpClient := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			panic("boom")
+		}),
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("runUpdateCycle did not recover panic: %v", r)
+		}
+	}()
+
+	runUpdateCycle(httpClient, dockerClient, container.ListOptions{}, testConfig("http://server.test/api/v1/applications"))
 }
 
 func TestPostAppsSendsPayload(t *testing.T) {

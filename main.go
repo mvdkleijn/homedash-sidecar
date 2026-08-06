@@ -17,7 +17,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 
 	"code.vanderkleijn.net/homedash-sidecar/internal/config"
@@ -66,6 +69,7 @@ func main() {
 		logger.Error("unable to connect with Docker API", "error", err)
 		os.Exit(1)
 	}
+	defer cli.Close()
 
 	options := container.ListOptions{
 		Filters: filters.NewArgs(
@@ -78,12 +82,30 @@ func main() {
 	// Check for old data and clean up every X minutes
 	go func() {
 		for {
-			postApps(client, getApps(cli, options, cfg), cfg)
+			runUpdateCycle(client, cli, options, cfg)
 			time.Sleep(cfg.Interval)
 		}
 	}()
 
-	select {}
+	// Wait for a termination signal before exiting
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
+	logger.Info("shutdown signal received, exiting")
+}
+
+// runUpdateCycle gathers the current set of apps and posts them to the server.
+// It recovers from any panic so a single failing cycle doesn't crash the process.
+func runUpdateCycle(client *http.Client, cli *client.Client, options container.ListOptions, cfg *config.Config) {
+	logger := config.GetLogger()
+
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("recovered from panic during update cycle", "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
+
+	postApps(client, getApps(cli, options, cfg), cfg)
 }
 
 func getApps(cli *client.Client, options container.ListOptions, cfg *config.Config) []ContainerInfo {
