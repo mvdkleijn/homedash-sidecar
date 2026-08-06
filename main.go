@@ -73,10 +73,12 @@ func main() {
 		),
 	}
 
+	client := &http.Client{Timeout: 30 * time.Second}
+
 	// Check for old data and clean up every X minutes
 	go func() {
 		for {
-			postApps(getApps(cli, options, cfg), cfg)
+			postApps(client, getApps(cli, options, cfg), cfg)
 			time.Sleep(cfg.Interval)
 		}
 	}()
@@ -234,7 +236,7 @@ func mergeApps(swarmApps, localApps []ContainerInfo) []ContainerInfo {
 	return result
 }
 
-func postApps(applications []ContainerInfo, cfg *config.Config) {
+func postApps(client *http.Client, applications []ContainerInfo, cfg *config.Config) {
 	logger := config.GetLogger()
 
 	logger.Debug("attempting to add apps to server", "apps", applications)
@@ -260,7 +262,6 @@ func postApps(applications []ContainerInfo, cfg *config.Config) {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Error("problem transmitting payload to server", "error", err)
