@@ -39,8 +39,8 @@ the server and are essentially the same as the ones from Heimdall.
 
 Labels can be placed in two spots. For plain old Docker, including Docker Compose,
 the labels should be placed on the container level. For Docker Swarm, they can be
-placed on either the container or service levels. If placed on both, the service
-level lables will take precedence.
+placed on either the container or service levels. If placed on both, the container
+level labels take precedence.
 
 **Docker Compose example**
 
@@ -78,7 +78,7 @@ services:
 | `HOMEDASH_LABEL_PREFIX` | Allows setting a custom prefix for the labels.          | No       | "homedash"                                      |
 | `HOMEDASH_LOG_LEVEL`    | Specifies logging level for sidecar application.        | No       | "INFO"                                          |
 
-*) interval can be set as for exampple "10m", "5s" or "1h". See https://pkg.go.dev/time#ParseDuration for details.
+*) interval can be set as for example "10m", "5s" or "1h". See https://pkg.go.dev/time#ParseDuration for details.
 
 ## Support
 
