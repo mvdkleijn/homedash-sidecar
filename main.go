@@ -247,6 +247,7 @@ func postApps(applications []ContainerInfo, cfg *config.Config) {
 	payload, err := json.Marshal(containerUpdate)
 	if err != nil {
 		logger.Error("problem marshalling payload for transmission to server", "error", err)
+		return
 	}
 
 	// Create a new HTTP request to the REST API endpoint
@@ -254,6 +255,7 @@ func postApps(applications []ContainerInfo, cfg *config.Config) {
 	req, err := http.NewRequest("POST", cfg.Server, bytes.NewBuffer(payload))
 	if err != nil {
 		logger.Error("problem creating HTTP request", "error", err)
+		return
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -262,6 +264,7 @@ func postApps(applications []ContainerInfo, cfg *config.Config) {
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Error("problem transmitting payload to server", "error", err)
+		return
 	}
 	defer resp.Body.Close()
 
