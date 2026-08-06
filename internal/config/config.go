@@ -57,6 +57,7 @@ func Load() *Config {
 	interval, err := time.ParseDuration(intervalStr)
 	if err != nil {
 		logger.Error("unable to parse interval string, using default", "default", "10m")
+		interval = 10 * time.Minute
 	}
 
 	logger.Debug("interval set to once per N minutes", "interval", interval.Minutes())
